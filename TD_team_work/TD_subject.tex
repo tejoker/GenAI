@@ -1,0 +1,768 @@
+\documentclass[11pt,a4paper]{article}
+
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage{lmodern}
+\usepackage[margin=2.6cm]{geometry}
+\usepackage{amsmath,amssymb}
+\usepackage{booktabs}
+\usepackage{tabularx}
+\usepackage{enumitem}
+\usepackage{xcolor}
+\usepackage[most]{tcolorbox}
+\usepackage[hidelinks]{hyperref}
+
+\definecolor{navy}{RGB}{0,0,110}
+\definecolor{teamblue}{RGB}{0,70,140}
+\definecolor{indivred}{RGB}{190,0,90}
+\definecolor{boxgrey}{RGB}{140,140,140}
+
+\setlength{\parindent}{1.5em}
+\setlength{\parskip}{0.3em}
+\setlength{\emergencystretch}{2em}
+
+% Question symbols
+\newcommand{\team}{\textcolor{teamblue}{$\bullet$}}
+\newcommand{\indiv}{\textcolor{indivred}{$\blacklozenge$}}
+\newcommand{\opt}{$\circ$}
+
+\newcommand{\E}{\mathbb{E}^{\mathbb{Q}}}
+\newcommand{\ind}[1]{\mathbf{1}_{\{#1\}}}
+
+% Boxes
+\newtcolorbox{navybox}[1]{enhanced, breakable, colback=navy!4, colframe=navy,
+  fonttitle=\bfseries, title={#1}, arc=1mm, boxrule=0.6pt}
+\newtcolorbox{greybox}[1]{enhanced, breakable, colback=black!4, colframe=boxgrey,
+  fonttitle=\bfseries, title={#1}, arc=1mm, boxrule=0.6pt}
+
+% Question list
+\newlist{questions}{enumerate}{1}
+\setlist[questions]{label=\textbf{Q\arabic*.}, leftmargin=3em, itemsep=0.6em}
+\newlist{dquestions}{enumerate}{1}
+\setlist[dquestions]{label=\textbf{D\arabic*.}, leftmargin=3em, itemsep=0.6em}
+
+\begin{document}
+
+\begin{center}
+  {\LARGE\bfseries Advanced Model Risk Management}\\[0.4em]
+  {\large Tutorials 1--2 --- The Phoenix Autocall as a Case Study}\\[2.5em]
+  Two 90-minute sessions --- Notebook: \texttt{TD\_model\_risk.ipynb} (posted on the ENT)\\[0.6em]
+  \rule{0.7\textwidth}{0.4pt}
+\end{center}
+
+\section*{Foreword: why this product}
+
+Model risk is hard to teach because most examples are degenerate: either the model is obviously
+wrong, or the product is so simple that every model agrees. The Phoenix autocall avoids both traps.
+It is one of the few instruments for which \emph{several models calibrate to exactly the same market data and
+still give different prices.} The divergence therefore comes neither from an implementation error nor
+from a bad set of parameters: it is structural, and that is precisely the definition of model risk.
+
+The tutorial follows seven steps. We start from the \textbf{payoff} and its decomposition, infer \textbf{which
+risks} the product carries, then \textbf{which model} is acceptable, and then turn the question around by
+judging models no longer on their prices but on \textbf{how faithful their sensitivities are}. We end with
+two warnings: faithful greeks are not a sufficient criterion, and enriching a model is not always the
+right answer.
+
+\section*{How the tutorials work}
+
+\noindent\textbf{Vocabulary.} TD = tutorial session: TD 1 and TD 2 are the two 90-minute sessions.\\
+\textbf{Teams.} You work in \textbf{teams of 4 to 5}. Each team has its own \textbf{term sheet}: a coupon barrier $B_c$
+and a protection barrier $B_p$, given by your group and team number in the team table (Excel answer
+sheet, tab \emph{Teams}, and notebook \S0). Every number you report is for your own term sheet.\\
+\textbf{The parts are independent.} Sections 1 to 8 and Block D can be read and answered in any order:
+each question recalls the result it needs, and the numbers it relies on come from the notebook. The
+only prerequisite is to run notebook \S0 with your group and team number.\\
+\textbf{Who answers what.} Each question carries a symbol:
+
+\begin{center}
+\small
+\begin{tabular}{@{}c l p{6.2cm}@{}}
+\toprule
+\team  & \textbf{Team}                  & Answered by the team in the team answer sheet (Excel), including its \emph{Decision} tab. \\
+\indiv & \textbf{Individual, mandatory} & Answered by \emph{each student alone}, in the individual answer sheet (Excel). \\
+\opt   & \textbf{Optional}              & For those who want to go further; not graded. \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\noindent\textbf{Before TD 1: read the subject.} Please take the time to read this subject before the first session:
+at least Section 1 (the product, the definitions, the parameters and the reminders (R1)--(R9)), and
+skim the questions. Also run the notebook once at home ($\sim$3 minutes) to check that it works. You
+will lose much less time in class.
+
+\begin{center}
+\small
+\begin{tabularx}{\textwidth}{@{}l >{\raggedright\arraybackslash}X >{\raggedright\arraybackslash}X@{}}
+\toprule
+\textbf{Phase} & \textbf{Questions} & \textbf{What happens} \\
+\midrule
+\textbf{Before} & Read the subject (at least Section 1) + run the notebook once & Not graded. Check at home that the notebook runs. \\[0.4em]
+\textbf{TD 1} (90 min) & Q10, 11, 12, 13, 16, 14 & The model gap, on your term sheet. Fill in part 1 of the answer sheet (kept by the team). \\[0.4em]
+\textbf{TD 2} (90 min) & Q18, 22--26 + Block D (D1--D3) + \emph{Decision} tab & What to do with the gap; a pricer written by an AI; your validation decision. Teams that have finished may start the individual part on their own. \\[0.4em]
+\textbf{After} & Team: finish the answer sheet (one week). Individual: all \indiv\ questions (end of October) & Team answer sheet and notebook; individual answer sheet (+ optional PDF appendix). \\
+\bottomrule
+\end{tabularx}
+\end{center}
+
+\begin{navybox}{Roadmap of the two sessions (minutes)}
+\small
+\textbf{TD 1 (whole team). 0--5}: set \texttt{GROUP} and \texttt{TEAM} in \S0, run the \emph{whole} notebook ($\sim$3 min), and meanwhile
+read Section 1.3 and, in Section 1.4, (R1), (R4) and (R6); designate your \textbf{Block D lead} and enter his
+or her email in the answer sheet (tab \emph{Team}). \textbf{5--15}: Q10. \textbf{15--28}: Q11. \textbf{28--52}: Q12--13. \textbf{52--72}: Q16.
+\textbf{72--82}: Q14 (shorten it if you are running late). \textbf{82--90}: answer sheet, part 1 (Excel template). Nothing is
+submitted at the end of TD 1.
+
+\textbf{TD 2 (the team splits in two). 0--3}: recap of model M4 by the instructor. \emph{Block D sub-team (the lead
+and one or two members).} \textbf{3--13}: test plan (D1), handed in \emph{before} receiving the module; the instructor then
+emails your team's module to the Block D lead, who shares it with the team. \textbf{13--50}: run the tests (D2)
+and measure the impact of each error (D3). \emph{Rest of the team.} \textbf{3--15}: Q18. \textbf{15--30}: Q22, Q23, Q24. \textbf{30--50}:
+Q25--26 (notebook \S7, run by you). \emph{Whole team.} \textbf{50--75}: the \emph{Decision} tab (Section 10). \textbf{75--90}: complete
+the answer sheet; teams that have finished start the individual part on their own. Nothing is submitted at
+the end of a session: see the deadlines below.
+
+\textbf{Precision.} Every number you report comes with the number of paths and a standard error (printed by
+the notebook for prices and break-even coupons), or failing that a second run with another seed.\\
+\textbf{Setup.} Python $\geq$ 3.9 with numpy, scipy and matplotlib (recent numpy: see the first cell of the notebook).
+\end{navybox}
+
+\noindent\textbf{Grading: 50\,\% team, 50\,\% individual.} There is no oral presentation. \emph{Team work} (50\,\%): the
+team answer sheet \texttt{TD\_answer\_sheet.xlsx} --- numbers, precision and Block D tests (25\,\%); \emph{Decision} tab (25\,\%). \emph{Individual work} (50\,\%): answers to the \indiv\ questions in the individual answer
+sheet \texttt{TD\_individual\_answers.xlsx}, written alone; long derivations may go in an optional PDF appendix.
+Everything is submitted on \textbf{Moodle} (or by email to the instructor if Moodle is unavailable). Groups
+IF3 and IF2, whose two tutorials run back to back on the same evening, are graded with the same
+leniency for this atypical schedule. The detailed grid is in the \textbf{evaluation sheet}.
+
+\begin{center}
+\small
+\begin{tabular}{@{}l l l@{}}
+\toprule
+\textbf{Group} & \textbf{Team answer sheet + notebook} & \textbf{Individual answer sheet (+ PDF appendix)} \\
+               & (one week after TD 2)                  & (end of the month) \\
+\midrule
+IF3 & Fri, Oct 9, 11:59 pm  & Sat, Oct 31, 11:59 pm \\
+IF2 & Thu, Oct 22, 11:59 pm & Sat, Oct 31, 11:59 pm \\
+IF1 & Fri, Oct 23, 11:59 pm & Sat, Oct 31, 11:59 pm \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+
+Several questions explicitly recall the result to use: they should not block anyone. The technical terms
+of Section 1.2 (EMTN, \emph{worst-of}, \emph{funding}\ldots) are not needed in class.
+
+%======================================================================
+\section{The product and what is at stake}
+
+\subsection{Mechanics}
+
+A \emph{Phoenix autocall} is a debt security (typically an EMTN) whose cash flows are linked to an equity
+underlying and observed on fixed dates. Three building blocks, checked on each date $t_i$:
+\begin{itemize}
+  \item \textbf{Conditional coupon}: paid if $S_{t_i} \geq B_c S_0$ (coupon barrier, e.g.\ 70\,\%), with or without a \emph{memory}
+  feature (catch-up of missed coupons).
+  \item \textbf{Early redemption} (\emph{autocall}): if $S_{t_i} \geq B_a S_0$ (e.g.\ 100\,\%), the note is redeemed at par and all
+  future cash flows disappear.
+  \item \textbf{Conditional protection}: at maturity, redemption at par unless $S_T < B_p S_0$ (e.g.\ 60\,\%), in which
+  case the investor bears the underlying's performance.
+\end{itemize}
+
+\begin{greybox}{Definitions used throughout}
+\small
+\textbf{At par.} At 100\,\% of the notional. The note is issued at par (the investor pays 100) and, when it is called
+or protected, redeemed at par (the investor receives 100). \emph{Below par} or \emph{above par} means a price under or
+over 100\,\%.\\
+\textbf{Expected life (expected duration).} The redemption date $\tau$ of an autocall is random: it depends on the
+path of the underlying. Its \emph{expected life} is $\E[\tau]$, the average time the note stays alive. A plain bond has a
+known life; an autocall's life shortens when early redemption becomes more likely.\\
+\textbf{Separable instrument.} A feature of a contract is \emph{separable} when it could be detached and traded on
+its own, as a stand-alone contract with its own cash flows, without changing the rest of the contract (the
+accounting notion of an embedded derivative that can be split from its host).\\
+\textbf{Structuring equation.} The identity that, at issue, splits the issue price (par) among the building blocks
+of the product and the fees kept by the bank: it shows what finances the coupon.\\
+\textbf{Observed at each close.} A barrier checked against the official \emph{closing price} of the underlying on every
+trading day, rather than only at maturity (European barrier) or at every instant during the day (continuous
+barrier).
+\end{greybox}
+
+\subsection{Economics}
+
+\begin{greybox}{What a Phoenix really is}
+The coupon is not a yield: it is the price of an option sold by the investor. The product is a
+\textbf{bet that the market will not fall}, never a bet that it will rise --- there is no participation in
+the upside. The distribution of outcomes is highly skewed: many small gains, few losses but very
+heavy ones. The median is flattering; the mean much less so.
+\end{greybox}
+
+Five points shape the economics of the product and will come back in the tutorial.
+\begin{enumerate}
+  \item \textbf{Where the budget comes from.} The coupon is financed by the premium of the put sold by the
+  investor and by the issuer's \emph{funding} benefit (the zero-coupon bond is issued on the issuer's credit
+  curve). Rate levels and credit spreads therefore drive how generous the coupon can be as much as
+  the level of volatility does.
+  \item \textbf{Early redemption shortens the expected life.} The most likely scenario (a stable or rising
+  market) is also the one that pays least in absolute terms: an early call, one or two coupons,
+  reinvestment risk.
+  \item \textbf{The choice of underlying dominates everything else.} A \emph{worst-of} on several uncorrelated
+  stocks, or a \emph{decrement} index (a fixed synthetic dividend subtracted, hence a lower forward), raise
+  the displayed coupon far more than any barrier setting. They raise the risk in the same proportion.
+  \item \textbf{The issuer's credit risk is real.} ``Capital protection'' is only as good as the issuer's signature.
+  \item \textbf{The secondary market is a monopoly.} The issuer is usually the only market maker, and
+  distribution fees, paid upfront, are amortized in the exit price.
+\end{enumerate}
+
+\subsection{Parameters used in the tutorial}
+
+\begin{center}
+\begin{tabular}{@{}l l@{}}
+\toprule
+Underlying, initial spot $S_0$ & single stock, 100 \\
+Maturity $T$ & 3 years \\
+Observation dates & semi-annual: 0.5, 1.0, \ldots, 3.0 \\
+Autocall barrier $B_a$ & 100\,\% \\
+Coupon barrier $B_c$ & 70\,\% (reference case; your team: 65, 70 or 75\,\%) \\
+Protection barrier $B_p$ & 60\,\% (reference case; your team: 50, 55 or 65\,\%) \\
+Memory feature & no (unless stated otherwise) \\
+Risk-free rate $r$, dividend yield $q$ & 2\,\%, 2\,\% \\
+Issue price & at par (100\,\%) \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\noindent\textbf{Your term sheet.} Wherever the subject says 70\,\% (coupon) or 60\,\% (protection), read the barriers
+of your team's term sheet; in the notebook, set \texttt{GROUP} and \texttt{TEAM} in the parameter cell of \S0 and the
+barriers follow. The numbers quoted in this subject are those of the reference case.
+
+The \textbf{market} is represented by a reference Heston model ($v_0 = \theta = 4\,\%$, $\kappa = 1.5$, $\xi = 0.6$, $\rho = -0.7$),
+from which the whole implied volatility surface is derived. The 3-year ATM implied volatility is about
+17\,\%, with a pronounced skew.
+
+\subsection{Reminders, notation and results taken as given}
+
+This section gathers everything used in the tutorial. \textbf{None of these results needs to be proved
+again}: they are provided to be used.
+
+\paragraph{(R1) Risk-neutral price and stopping time.} Under a risk-neutral measure $\mathbb{Q}$, writing $R_i =
+S_{t_i}/S_0$ and
+\[
+  \tau \;=\; \inf\{\, t_i,\; i<n \;:\; R_i \geq B_a \,\}, \qquad \inf\emptyset := t_n,
+\]
+the price of the Phoenix reads
+\[
+  V_0 \;=\; \E\!\left[\, \sum_{i=1}^{n} e^{-r t_i}\, c\, \ind{R_i \geq B_c}\, \ind{t_i \leq \tau} \;+\; e^{-r\tau}\, \Pi_\tau \right],
+  \quad
+  \Pi_\tau =
+  \begin{cases}
+    1 & \tau < t_n \\
+    1 - (1 - R_n)\,\ind{R_n < B_p} & \tau = t_n.
+  \end{cases}
+\]
+
+\paragraph{(R2) The four models.} All under $\mathbb{Q}$, with $S_0$ and $r, q$ given.
+\begin{gather*}
+  \textbf{M1}:\;\; \frac{dS_t}{S_t} = (r-q)\,dt + \sigma_{\mathrm{ATM}}\, dW_t
+  \qquad\qquad
+  \textbf{M2}:\;\; \frac{dS_t}{S_t} = (r-q)\,dt + \sigma_{\mathrm{loc}}(S_t,t)\, dW_t \\[0.6em]
+  \textbf{M3}:\;\; \frac{dS_t}{S_t} = (r-q)\,dt + \sqrt{v_t}\, dW^1_t, \quad
+  dv_t = \kappa(\theta - v_t)\,dt + \xi\sqrt{v_t}\, dW^2_t, \quad
+  d\langle W^1, W^2\rangle_t = \rho\, dt. \\[0.6em]
+  \textbf{M4 (local-stochastic)}:\;\; \frac{dS_t}{S_t} = (r-q)\,dt + L(S_t,t)\sqrt{v_t}\, dW^1_t, \\
+  dv_t = \kappa(\theta - v_t)\,dt + \boldsymbol{\eta}\,\xi\sqrt{v_t}\, dW^2_t,
+\end{gather*}
+where $L$ is the \textbf{leverage function} and $\eta \in [0,1]$ the \textbf{mixing fraction}. M4 is the market standard for
+autocalls; it was only mentioned in the lectures. \emph{What to remember:} at each date, $L$ is chosen so that
+$L^2(S,t)\,\E[v_t \mid S_t = S] = \sigma^2_{\mathrm{loc}}(S,t)$; by Gyöngy (R4), every value of $\eta$ therefore reproduces \emph{all} vanillas.
+$\eta$ sets the share of stochastic volatility: $\eta = 0$ gives back local volatility M2, $\eta = 1$ stochastic volatility
+M3. Vanillas do not see $\eta$; the forward skew does. The notebook provides M4 already calibrated.
+
+\paragraph{(R3) Dupire's formula.} In total implied variance $w(y,T) = \sigma^2_{\mathrm{imp}}(y,T)\,T$ with $y = \ln(K/F_T)$:
+\[
+  \sigma^2_{\mathrm{loc}}(y,T) \;=\;
+  \frac{\partial_T w}
+  {1 - \frac{y}{w}\,\partial_y w + \frac{1}{4}\left(-\frac{1}{4} - \frac{1}{w} + \frac{y^2}{w^2}\right)(\partial_y w)^2 + \frac{1}{2}\,\partial_{yy} w}.
+\]
+
+\paragraph{(R4) Gyöngy's theorem (1986), taken as given.} Let $S$ be a stochastic volatility diffusion.
+Setting $\sigma^2_{\mathrm{loc}}(K,T) = \E[v_T \mid S_T = K]$, the process $\widetilde S$ solving $d\widetilde S_t/\widetilde S_t = (r-q)\,dt + \sigma_{\mathrm{loc}}(\widetilde S_t, t)\,dW_t$ has,
+\emph{for each} $T$, the same marginal law as $S_T$. Nothing is claimed about the joint laws of $(S_{T_1},\ldots,S_{T_k})$.
+
+\paragraph{(R5) Completeness criterion, taken as given.} A market driven by $d$ independent Brownian
+motions is complete if $d$ traded assets (besides the numeraire) are available whose volatility matrix is
+invertible. In this tutorial, unless stated otherwise, we hedge with the \emph{underlying alone} (and cash).
+Otherwise, the martingale measure is not unique and some payoffs cannot be replicated.
+
+\paragraph{(R6) Forward variance and forward smile.} The forward variance is $\E\big[\int_{T_1}^{T_2} v_s\,ds \,\big|\, \mathcal{F}_0\big]$. The
+\textbf{forward smile} $T_1 \to T_2$ is the implied volatility surface of \emph{forward-starting} options, with payoff
+$\big(S_{T_2}/S_{T_1} - k\big)^+$. Its slope is the \textbf{forward skew}. It depends on the law of $S_{T_2}$ \emph{given} $S_{T_1}$ (the \emph{transition
+kernel}), which calibration to vanillas does not constrain.
+
+\paragraph{(R7) The three valuation layers, and what they correct.}
+
+\begin{center}
+\small
+\begin{tabularx}{\textwidth}{@{}>{\raggedright\arraybackslash}X >{\raggedright\arraybackslash}X >{\raggedright\arraybackslash}X >{\raggedright\arraybackslash}X@{}}
+\toprule
+\textbf{Layer} & \textbf{Framework} & \textbf{What it corrects} & \textbf{Where it is booked} \\
+\midrule
+Front-office valuation & internal (management) & nothing: it is the desk model's \emph{mid} price & management P\&L, greeks \\[0.3em]
+Fair value adjustments & \textbf{accounting}: IFRS 13, IFRS 9 & the gap between the \emph{mid} price and the \emph{exit price} of an actual position & income statement and balance sheet (fair value) \\[0.3em]
+Prudent valuation (AVA) & \textbf{prudential}: CRR art.\ 105, EBA RTS & the gap between fair value and a \emph{prudent} value (90\,\% confidence) & deduction from CET1 capital \\
+\bottomrule
+\end{tabularx}
+\end{center}
+
+\textbf{IPV is not a reserve.} \emph{Independent Price Verification} (CRR art.\ 105(8)) is a \textbf{control}: a periodic
+check --- at least monthly --- of the accuracy of the front office's parameters and marks against
+independent sources. It produces \emph{differences}, which may trigger an adjustment; it is not one.
+
+\textbf{Usual fair value adjustments (accounting):} bid-offer / close-out cost; parameter uncertainty
+(unobservable inputs); model uncertainty; concentration and liquidity; XVA (CVA, DVA, FVA); and,
+for Level 3 positions, \textbf{deferral of day-one P\&L} (IFRS 9) --- which is not a reserve but an accounting
+rule.
+
+\textbf{AVA categories (prudential):} market price uncertainty --- close-out costs --- \textbf{model risk} ---
+concentrated positions --- future administrative costs --- early termination --- operational risk ---
+investing and funding costs --- unearned credit spreads. AVAs \textbf{come on top of} the accounting
+adjustments already booked: they are added to them, and a risk already covered by an accounting
+adjustment is not counted a second time.
+
+\textbf{Three kinds of uncertainty not to be confused:} \emph{(i)} a poorly observed \textbf{market} parameter ---
+the quantity exists and trades, but without a reliable consensus (long-dated dividends, repo, implied
+correlation of a basket); \emph{(ii)} a \textbf{model} parameter --- the quantity exists only inside the model and no
+data can reveal it ($\eta$); \emph{(iii)} \textbf{specification} risk --- the choice of the model family itself. The three call
+for different treatments and governance.
+
+\paragraph{(R8) Vocabulary.} \emph{Vega convexity} (or \emph{volga}): $\partial^2 V/\partial\sigma^2$, zero for an at-the-money vanilla, nonzero
+elsewhere. --- \emph{Vega buckets}: breakdown of vega by maturity bucket. --- \emph{Day-one P\&L}: profit recognized
+at inception, equal to the gap between the transaction price and the model value. --- \emph{AVA} (\emph{Additional
+Valuation Adjustment}): see (R7). --- \emph{Cross gamma}: second-order cross sensitivity $\partial^2 V/\partial x\,\partial y$ between
+two risk factors. --- \emph{Gap risk}: loss caused by a move of the underlying across a level where the payoff is
+discontinuous (a barrier), between two rebalancings or through a jump. Near the barrier and maturity,
+the delta becomes so large that the hedge cannot follow: the loss is of the order of the payoff's jump,
+whatever the model. --- \emph{Delta} (notebook, \S7): change in value for a 100\,\% rise of the spot, as a fraction
+of the notional, i.e.\ $S\,\partial V/\partial S$; a delta of 20 means that a 1\,\% move of the spot changes the value by
+20\,\% of the notional.
+
+\paragraph{(R9) What a model is (supervisory definition).} A \emph{model} is a quantitative method, system
+or approach that applies statistical, economic, financial or mathematical theories, techniques and
+assumptions to process input data into quantitative estimates. It has three components: an input
+component, a processing component that turns inputs into estimates, and a reporting component.
+Who or what wrote the code plays no role in this definition. Model changes are graded by materiality,
+as in common bank policies (Session 5): \textbf{I --- minor} (routine recalibration, data refresh, cosmetic code
+change): notification and automated tests; \textbf{II --- material} (new product in scope, new calibration
+set, library upgrade): targeted review before use; \textbf{III --- major} (new methodology, new model, new
+numerical scheme): full validation before use.
+
+\begin{navybox}{Convention: the break-even coupon}
+Coupons are paid \textbf{semi-annually}. The \textbf{break-even coupon} is the semi-annual coupon $c$ such
+that the value of the product equals par. Since the value is affine in $c$,
+\[
+  c \;=\; \frac{1 - \text{(redemption leg)}}{\text{annuity}}, \qquad
+  \text{annuity} = \sum_i \E\big[e^{-r t_i}\, \mathbf{1}_{\{\text{coupon paid at } t_i\}}\big].
+\]
+It is quoted \textbf{per year}: the annual coupon is $2c$, as on a term sheet (``6\,\% p.a., paid semi-annually'').
+Coupons are paid out, not reinvested, so there is no compounding: not $(1+c)^2 - 1$. Every model
+gap is expressed in \textbf{basis points of annual coupon} (twice the semi-annual gap), the one unit
+that speaks to the distributor and to the trader alike.
+\end{navybox}
+
+%======================================================================
+\section{Decomposing the payoff}
+
+\begin{questions}
+  \item \indiv\ Write the cash flow of the product on date $t_i$ as a function of $S_{t_i}$ and of the survival indicator
+  $\mathbf{1}_{\{\text{not called before } t_i\}}$. Deduce a decomposition of the Phoenix into four elementary building blocks:
+  a zero-coupon bond, a sold barrier put, a strip of bought digitals, and a \emph{knock-out} condition.
+
+  \item \indiv\ \textbf{Show that} the price of the product reads as in (R1), explaining the role of each indicator.
+  \textbf{Deduce that} the payoff is not a function of $S_T$ alone: state the variables it depends on. \emph{(The
+  result to establish is given in (R1); the task is to justify it term by term.)}
+
+  \item \indiv\ Explain why the autocall clause is not a separable instrument (see the definitions in Section 1.1)
+  but a condition on \emph{all} future cash flows. What does this imply for the expected life of the
+  product?
+
+  \item \indiv\ Write the structuring equation linking the coupon, the put premium, the cost of the digital
+  strip, the funding benefit, the structuring margin and the distribution fee.
+
+  \item \indiv\ The put sold here has a \textbf{European barrier}: the protection barrier is only observed at maturity.
+  Write its payoff. How does it differ from a \emph{down-and-in} put with an American barrier
+  (observed continuously, or at each close)? Which of the two is more expensive, and why did the
+  European market switch massively to the first one after 2008?
+\end{questions}
+
+%======================================================================
+\section{A taxonomy of model risk and a decision ladder}
+
+We use the usual three-way taxonomy: \textbf{(i)} the model is badly implemented; \textbf{(ii)} the model is correct
+but fed with bad inputs; \textbf{(iii)} the chosen model is not the right one for this derivative. Form (i) is the
+subject of Block D (Section 9); everywhere else, implementations are assumed to be sound.
+
+\begin{questions}[resume]
+  \item \indiv\ For each of the three forms, give a concrete example drawn from the Phoenix.
+
+  \item \indiv\ Consider the following \textbf{decision ladder}, which ranks payoffs by increasing demands on the
+  model:
+  \begin{center}
+  \small
+  \begin{tabular}{@{}c l l@{}}
+  \toprule
+  Level & Nature of the payoff & Minimal model \\
+  \midrule
+  A & decomposable into vanillas & Black--Scholes, one implied vol per strike \\
+  B & sensitive to the skew, not decomposable & properly calibrated local vol \\
+  C & vega convexity, forward skew & stochastic volatility \\
+  \bottomrule
+  \end{tabular}
+  \end{center}
+  Rank: (a) a call spread; (b) an Asian option; (c) a European digital; (d) a European-barrier
+  put; (e) a down-and-in put with a continuous barrier; (f) a cliquet with local floors and caps;
+  (g) the full Phoenix. Justify each answer in one sentence.
+
+  \item \indiv\ Why can a call spread be priced in Black--Scholes although it is sensitive to the skew? What
+  in the Phoenix prevents the same reasoning?
+
+  \item \indiv\ \textbf{Using} the dynamics (R2) and the completeness criterion (R5): for each of the three models,
+  give the number of Brownian motions and the number of traded assets when hedging with
+  the \emph{underlying alone}. \textbf{Deduce that} M1 and M2 then define complete markets, and M3 an
+  incomplete one. What does this imply in practice for what one can expect from a delta hedge
+  under M3? What would adding vanillas to the hedging instruments change?
+\end{questions}
+
+%======================================================================
+\section{Calibration \emph{is} a model choice}
+
+This is the heart of the tutorial. We have three models: \textbf{(M1)} Black--Scholes with a flat volatility set
+at the 3-year ATM; \textbf{(M2)} Dupire local volatility calibrated to the whole surface; \textbf{(M3)} the reference
+stochastic volatility model. By construction, M2 and M3 reproduce \emph{exactly the same} vanilla prices.
+
+\begin{questions}[resume]
+  \item \team\ \textbf{Using Gyöngy's theorem (R4)}, show that M2 and M3 give the \emph{same} value to any payoff
+  of the form $g(S_T)$. Check this result numerically \textbf{(notebook, \S1--2)} on call prices. Finally,
+  \textbf{show that} the argument does not extend to a payoff of the form $g(S_{T_1}, S_{T_2})$: which object, not
+  constrained by (R4), then comes in? \emph{(Hint: see (R6).)}
+
+  \item \team\ \textbf{(Notebook, \S3)} Price under M1, M2 and M3 the \emph{European-barrier put} alone (strike 100\,\%,
+  barrier $B_p$ of your term sheet, maturity 3 years). Comment on the gap between M2 and M3 on
+  the one hand, and on the gap with M1 on the other. What do you conclude about the role of
+  the model choice for a payoff whose value depends only on $S_T$?
+
+  \item \team\ \textbf{(Notebook, \S4)} Now price the \textbf{full Phoenix} under the three models and compute the
+  break-even coupon of each. Express the M2/M3 gap in basis points per year.
+
+  \item \team\ Where does this gap come from, given that it was essentially zero in Q11 (the put alone)?
+  Identify precisely the feature of the payoff responsible, then the \textbf{two channels} through which it
+  acts: (a) what the product becomes after a date on which it is not called; (b) the probability of
+  being called on each date, hence the expected life of the product (compare the annuities printed
+  by the notebook).
+
+  \item \team\ \textbf{(Notebook, \S4)} Redo the computation with a protection barrier \emph{observed at each close} (see
+  Section 1.1), and no longer at maturity only. By how much does the break-even coupon change?
+  Does the M2--M3 gap widen? What calibration does this product require: exact at maturity
+  only, or smooth over the whole surface (strikes and maturities)? \emph{(Hint: how is the vega spread
+  over time?)} Finally, what must the term sheet specify?
+
+  \item \indiv\ A structurer prices the product in local volatility and quotes the corresponding coupon. The
+  structurer wins the deal against a competitor who prices in stochastic volatility. Describe the
+  structurer's economic position. Is it a gain?
+
+  \item \team\ \textbf{(Notebook, \S4bis)} We measure the \emph{forward smile} 1\,year $\to$ 3\,years in the sense of (R6),
+  under M2 and under M3, together with the spot smile of the same length (from 0 to 2 years).
+  The \emph{slope} is the implied vol at strike 70\,\% minus the implied vol at strike 110\,\%, in vol points.
+  Compare the three slopes, and say why they are the same for every term sheet. \textbf{Deduce} the
+  precise mechanism behind the gap found in Q12, and explain why calibration to vanillas does
+  not detect it. \emph{(Hint: after a date on which the product is not called, what does the remaining
+  product look like?)}
+
+  \item \opt\ Model M4 (R2) is the one desks actually use. \textbf{Using Gyöngy's theorem (R4)}, show that
+  exact calibration to vanillas requires
+  \[
+    L^2(S,t)\,\E[v_t \mid S_t = S] \;=\; \sigma^2_{\mathrm{loc}}(S,t).
+  \]
+  \textbf{Check that} $\eta = 0$ gives back M2 and $\eta = 1$ gives back M3. Why does this condition require
+  calibrating $L$ and the simulation \emph{simultaneously} (the so-called particle method)?
+
+  \item \team\ \textbf{(Notebook, \S4ter) Validate M4 before using it.} M4 is provided calibrated. For $\eta \in
+  \{0;\, 0.25;\, 0.5;\, 0.75;\, 1\}$: (a) check that the vanillas are reproduced in every case; (b) \textbf{check the
+  bounds}: does $\eta = 0$ give back the coupon of M2, and $\eta = 1$ that of M3? Quantify the gap at
+  each bound and say whether it comes from the model or from the code; (c) record the break-even
+  coupon and the forward smile slope, then give the \textbf{coupon range} as $\eta$ spans $[0,1]$, with
+  its uncertainty. \textbf{What do you conclude} about whether $\eta$ can be identified from market data?
+  \emph{The operational definition of the model uncertainty adjustment that follows, and why it is more
+  satisfactory than the M2/M3 gap of Q12, go in the} Decision \emph{tab (Q36).}
+\end{questions}
+
+%======================================================================
+\section{The sign of vega and skew: the trap}
+
+\begin{questions}[resume]
+  \item \indiv\ The seller of the Phoenix is short the digital strip and long the barrier put. Reasoning on
+  where the forward stands relative to the coupon barrier, determine the sign of the volatility
+  sensitivity of \emph{each} of the two components.
+
+  \item \indiv\ \textbf{(Notebook, \S5)} Compute numerically the vega of each building block, then of the whole
+  product. Does the result confirm the intuition? What happens to the sign if the coupon barrier
+  is raised from 70\,\% to 95\,\%?
+
+  \item \indiv\ Same question for the skew. What \emph{pricing} practice does a prudent trader adopt when the net
+  sign of a parameter is not stable?
+\end{questions}
+
+%======================================================================
+\section{Choosing a model by the faithfulness of its sensitivities}
+
+So far, models have been judged on their \emph{prices}. We now turn the question around: a model is not
+a price generator, it is a generator of \textbf{hedging strategies}. The right model is the one whose greeks
+allow the payoff to be replicated.
+
+\begin{questions}[resume]
+  \item \team\ \textbf{(Notebook, \S6)} Assume that ``reality'' follows the reference model M3. Delta-hedge the
+  European-barrier put, rebalancing every week for 3 years, with the deltas of M1, M2 and M3 in
+  turn. Compare the mean, the standard deviation and the 5\,\% quantile of the terminal hedging
+  P\&L.
+
+  \item \team\ Interpret the \emph{mean} and the \emph{standard deviation} of the P\&L separately. Which one measures a
+  price error, which one a greeks error? \emph{(Discussed in class, orally.)}
+
+  \item \team\ M2 and M3 show the same initial price. Does their hedging performance tell them apart? What
+  dominates the residual risk? Two leads: (a) the M3 delta in the notebook is computed at fixed
+  variance $v$; when $\rho \neq 0$, is it the delta that minimizes the variance of the P\&L (see the market
+  regime and the SSR, Session 4)? (b) would this residual risk disappear with a better model,
+  with other hedging instruments (vanillas), or with neither? Deduce whether it is a ``model'' risk
+  or whether it comes from market incompleteness when hedging with the underlying alone.
+
+  \item \team\ \textbf{(Notebook, \S7, run by your team)} Plot the delta of the Phoenix around the protection
+  barrier $B_p$ at $t = 2.5;\ 2.9;\ 2.99;\ 2.999$ (unit: see (R8)). Comment. Can a desk execute this
+  hedge? This is the \emph{gap risk} of (R8). \emph{Validator's remark:} the value of the delta very close to
+  maturity depends on the computational grid; why should you distrust it, and which value would
+  you retain?
+
+  \item \team\ \textbf{(Notebook, \S7)} Replace each barrier indicator with a call spread of half-width $\varepsilon$ (\emph{barrier
+  shift}). Record the maximum delta as a function of $\varepsilon$ (notebook table). Then compute the effect
+  of $\varepsilon$ on the break-even coupon. What do you observe, and why does \emph{symmetric} smoothing
+  generate almost no margin? How does a desk actually proceed? \emph{(Hint: on which side should
+  the barrier be shifted to be prudent?)}
+
+  \item \opt\ Also plot the delta around the autocall barrier just before an observation date. What happens
+  and how should it be interpreted economically?
+\end{questions}
+
+\begin{navybox}{Caveat to state explicitly}
+Faithful greeks are a \textbf{necessary but not sufficient} criterion, for at least three reasons: (a) a
+``reality'' has to be assumed to assess them, and that is exactly the unknown; (b) part of the
+residual risk cannot be reduced by a better model: the volatility left unhedged when hedging
+with the underlying alone (Q24), and the gap risk near the barrier (Q25); (c) a model can hedge
+well and price badly, or the reverse. The hedging criterion therefore does not replace the pricing
+criterion: it complements it.
+\end{navybox}
+
+%======================================================================
+\section{Front office, independent control, prudent value}
+
+The same product is valued at several levels, by functions with different goals and under different
+frameworks. The point not to miss: the \textbf{accounting} and the \textbf{prudential} layers do not correct the
+same thing and are not booked in the same place (R7).
+
+\begin{questions}[resume]
+  \item \team\ Complete and comment on the following table.
+  \begin{center}
+  \small
+  \begin{tabular}{@{}l c c c@{}}
+  \toprule
+  & \textbf{Front office} & \textbf{Control (IPV)} & \textbf{Prudent value} \\
+  \midrule
+  Main objective & ? & ? & ? \\
+  Framework & ? & ? & ? \\
+  Success criterion & ? & ? & ? \\
+  Frequency & ? & ? & ? \\
+  Treatment of barriers & ? & ? & ? \\
+  Attitude toward complexity & ? & ? & ? \\
+  \bottomrule
+  \end{tabular}
+  \end{center}
+
+  \item \team\ \textbf{Using (R7)}, explain why IPV is \emph{not} a reserve, and what it produces instead. What happens
+  when an IPV difference is found and judged significant?
+
+  \item \team\ Distinguish precisely a \textbf{fair value adjustment} from an \textbf{AVA}: (a) under which framework
+  is each one required; (b) what does each one try to approximate --- exit price? prudent value,
+  and at what confidence level?; (c) where is each one booked; (d) AVAs are added on top of
+  the accounting adjustments already booked: how does one make sure that the same risk is not
+  counted twice?
+
+  \item \team\ \textbf{Classify} each of the uncertainties met in this tutorial according to the three kinds of (R7) ---
+  poorly observed market parameter, model parameter, specification --- then state the adjustment
+  that most naturally deals with it.
+  \begin{center}
+  \small
+  \begin{tabularx}{\linewidth}{@{}>{\raggedright\arraybackslash}X c c c@{}}
+  \toprule
+  Uncertainty & Kind & Accounting adjustment & AVA category \\
+  \midrule
+  Mixing fraction $\eta$ (Q18) & ? & ? & ? \\
+  Choice local vol / local-stochastic & ? & ? & ? \\
+  Projected dividends at 3 years (single stock) & ? & ? & ? \\
+  Implied correlation of a \emph{custom} basket & ? & ? & ? \\
+  Volatility left unhedged by the delta alone (Q24) & ? & ? & ? \\
+  Gap risk at the barrier (Q25) & ? & ? & ? \\
+  Gap between theoretical and smoothed price (Q26) & ? & ? & ? \\
+  \bottomrule
+  \end{tabularx}
+  \end{center}
+
+  \item \team\ The front office smooths its barriers (\emph{barrier shift}) and hedges the regularized product. Should
+  independent control validate this value? Argue both ways, then say which layer deals with the
+  remaining gap.
+
+  \item \team\ The front office prices in local volatility; the independent valuation team uses M4. The gap is
+  persistent. \textbf{How does it show}, first in the accounting result and then in capital? Why is it
+  not the same amount?
+
+  \item \team\ A product is sold at 100 while the validated model values it at 98. What happens to the gap
+  of 2 in the accounts if the product is classified as Level 3 in the fair value hierarchy? How does
+  this rule protect against the situation described in Q15?
+
+  \item \team\ State the central tension in one sentence, contrasting \emph{accuracy of the representation} and \emph{operability of the hedge}. Can it be settled?
+
+  \item \team\ A desk proposes to replace its local volatility model with model M4, for which Q18 measured
+  the coupon range as the mixing fraction $\eta$ spans $[0,1]$ and assessed whether $\eta$ can be identified
+  from vanillas. Should the validation committee approve? Which safeguards should it require,
+  on what principle should $\eta$ be set, and to which layer of (R7) should this range be attached?
+\end{questions}
+
+%======================================================================
+\section{Counter-example: when \emph{not} to enrich the model}
+
+\begin{greybox}{Reminder: what the product is, economically}
+Before tackling this part, keep in mind that the Phoenix is not only a payoff. It is a \textbf{debt security}
+issued on the issuer's funding curve, \textbf{redeemed at a random date} that depends on the path of
+the underlying, sold at a fixed coupon during several weeks of marketing, and then quoted by a
+single market maker. Its life is not a parameter: it is a random variable. This observation alone
+opens a dimension of risk that everything above has ignored.
+\end{greybox}
+
+\begin{questions}[resume]
+  \item \indiv\ The seller hedges the rate leg with zero-coupon bonds. To isolate the mechanism, take the
+  simplest autocall: \textbf{maturity 2 years, with a single early-redemption date at 1 year} (the
+  note is called at 1 year if $S_1 \geq B_a S_0$, and otherwise runs to its maturity at 2 years, where it is
+  redeemed). Until the 1-year date, the issuer does not know whether it will repay after 1 year or
+  after 2 years: its rate hedge is a mix of 1-year and 2-year zero-coupon bonds, weighted by the
+  probability of being called. Describe how this rate hedge must be rebalanced in the following
+  two cases: (a) the underlying rises; (b) the underlying falls. Then say what happens to the
+  hedge \emph{at} the 1-year date if the note is called, and \emph{between 1 and 2 years} if it is not.
+
+  \item \indiv\ Assuming a \emph{positive} correlation between the underlying and interest rates, show that the
+  rebalancing loses money in both cases. Redo the reasoning with a negative correlation. Deduce
+  the direction of the effect on the price.
+
+  \item \indiv\ How does this cost vary with the maturity of the product? With the number of early-redemption dates?
+
+  \item \indiv\ Should one therefore adopt a stochastic interest rate model? Build the argument \emph{against},
+  carefully distinguishing what a model lets you \emph{see} from what it lets you \emph{do}.
+
+  \item \opt\ What, then, is market practice? \emph{(Practitioner's order of magnitude, given for guidance only:
+  about 10 bp of coupon per year, depending on the maturity and the size of the deal.)}
+
+  \item \team\ \textbf{Synthesis.} State the general criterion that emerges from the whole tutorial: under what
+  condition is enriching a model justified? Apply this criterion to the four decisions met along
+  the way: (a) moving from Black--Scholes to local volatility; (b) moving from local volatility to
+  stochastic volatility; (c) moving to local-stochastic M4; (d) moving to stochastic rates. \emph{In the
+  Decision tab, only (a) to (c) are graded; (d) draws on the individual questions Q37--Q40.}
+\end{questions}
+
+%======================================================================
+\section{Block D --- A pricer written by an AI: validate it}
+
+\begin{greybox}{Why this block}
+A code assistant produces in a few seconds a clean, documented pricer that runs and prints a
+plausible coupon. The cost of \emph{production} has collapsed; the cost of \emph{verification} has not moved.
+The job shifts toward designing tests: this is exactly form (i) of the taxonomy of Section 3, which
+the rest of the tutorial sets aside.
+\end{greybox}
+
+\noindent\textbf{Organization.} At the start of TD 1, each team designates a \textbf{Block D lead} and enters his or her
+email address in the answer sheet (tab \emph{Team}). Once the team has handed in its test plan (D1), the
+instructor emails the team's module, \texttt{phoenix\_pricer\_llm.py}, to the Block D lead, who shares it
+with the rest of the team. The module was generated by an LLM from the description of \emph{your} term
+sheet and of the reference market. It contains several errors. You are the validator. Modules differ
+from one team to another and from one tutorial group to another.
+
+\begin{greybox}{Interface of the module (all you need to write the plan)}
+\small
+\texttt{simulate\_heston(S0, T, n\_steps, n\_paths, r, q, hp, seed=None)}: spot paths, an array of shape
+$(n_{\text{steps}}+1) \times n_{\text{paths}}$ (one column per path).\\
+\texttt{phoenix\_pv(paths, T, coupon, product, r)}: discounted value of the cash flows, path by path (notional
+1); \texttt{paths} has the same shape as above, and hand-built paths can be passed in.\\
+\texttt{price(coupon, S0=None, n\_steps=300, n\_paths=50\_000, seed=None, \ldots)} (pass arguments by name:
+the second positional argument is the spot), \texttt{break\_even\_coupon(\ldots)}, \texttt{delta(coupon, bump=0.001, \ldots)}.
+Constants \texttt{PRODUCT}, \texttt{MARKET}, \texttt{HESTON}. The coupon is \emph{semi-annual}. The module calls the vol of vol \texttt{xi} (the
+notebook calls it \texttt{sigma}): do not pass the notebook's parameters to the module directly.
+\end{greybox}
+
+\begin{dquestions}
+  \item \team\ \textbf{Before receiving the module}, write a test plan (half a page), handed in on Moodle or on
+  paper: \textbf{at least five tests, one per error class} (numerical scheme, market data, payoff logic,
+  term-sheet reading, greeks), each with its expected result, justified without the module. Hint:
+  a calibrated model must reproduce a martingale, known vanilla prices, and hand-built paths; a
+  greek must be stable from one computation to the next.
+
+  \item \team\ Run your tests against the module. List those that fail, and locate the line responsible. One
+  error can hide another: once you have found one, fix it and rerun your tests.
+
+  \item \team\ For each error found: fix it, then measure its impact in basis points of annual break-even
+  coupon, \emph{all else being equal} (same random draws).
+
+  \item \team\ The assistant claims that ``the break-even coupon it returns is consistent with the literature.''
+  What has it actually checked? What should have been checked?
+
+  \item \team\ Is this pricer a \emph{model} in the sense of definition (R9), even though it was written by a generative
+  AI tool? Who must validate it, under which change category (I to III, see (R9)), and how can
+  one prevent such a tool from circulating outside the model inventory (\emph{shadow IT})? \emph{(Everything
+  you need is in (R9); no external text is required.)}
+\end{dquestions}
+
+\begin{navybox}{Rule of the game}
+Block D is the only part where an AI may be used, and only to help write your tests. You remain
+solely responsible for what you hand in: the \emph{Decision} tab states which tools were used for the tests
+and what you checked yourselves. Everywhere else, AI tools are not allowed.
+\end{navybox}
+
+%======================================================================
+\section{The \emph{Decision} tab (TD 2, team)}
+
+There is no oral presentation: the team's validation decision is written in the \emph{Decision} tab of the team
+answer sheet. It contains, in short answers:
+\begin{itemize}
+  \item \textbf{the decision}, for the model \emph{and} for the Block D pricer: approve, approve with conditions, or
+  reject, justified in five lines with the numbers of your term sheet and their precision, and what
+  would change it;
+  \item \textbf{the model uncertainty adjustment}: the $\eta$ range retained (Q18) and the principle used to set
+  $\eta$ (Q36);
+  \item \textbf{Section 7}: Q28 to Q35;
+  \item \textbf{Block D}: D4 and D5 (the impacts of D3 are in the \emph{Block D} tab);
+  \item \textbf{the criterion} of Q42, parts (a) to (c);
+  \item \textbf{Block D AI statement}: the AI tools used to write your Block D tests, if any, and what you
+  checked yourselves (or ``none'').
+\end{itemize}
+Start it in TD 2 (minutes 50--75); the team has one week after TD 2 to finish and submit it.
+
+\section*{Appendix --- The two answer sheets}
+
+The answer sheet is an \textbf{Excel file}, \texttt{TD\_answer\_sheet.xlsx}, posted on the ENT. One row per number,
+for \emph{your} term sheet; add rows if needed. It is filled in during both tutorials and submitted on Moodle
+one week after TD 2, together with the notebook. Its tabs: \emph{Team} (group, team number, members,
+Block D lead's email), \emph{Answers} (question, numbers, paths, standard error, one-sentence reading),
+\emph{Block D} (test plan and results), \emph{Decision} (Section 10), \emph{Teams} (term sheet of every team).
+
+The \textbf{individual answer sheet}, \texttt{TD\_individual\_answers.xlsx}, has one cell per \indiv\ question. Write
+formulas in plain text (e.g.\ \texttt{V0 = E[sum exp(-r t\_i) c 1\{R\_i >= Bc\} ...]}); long derivations may
+go in an optional PDF appendix, submitted with it.
+
+\vspace{2em}
+\noindent\rule{\textwidth}{0.4pt}
+{\small\emph{Useful references}: M. Bouzoubaa \& A. Osseiran, \emph{Exotic Options and Hybrids}, Wiley, 2010 (ch.\ 4, 10, 11, 12);
+J. Gatheral, \emph{The Volatility Surface}, Wiley, 2006; L. Bergomi, \emph{Stochastic Volatility Modeling}, CRC, 2016; Basel
+Committee / CRR art.\ 105 on \emph{prudent valuation}; J. Guyon \& P. Henry-Labordère, \emph{Nonlinear Option Pricing},
+CRC, 2014 (local-stochastic model, particle method).\par}
+
+\end{document}
